@@ -1,0 +1,616 @@
+/* ========================================
+   Statcast AI Query Engine — Global Styles
+   ======================================== */
+
+:root {
+    --bg-primary: #0f1923;
+    --bg-secondary: #1a2332;
+    --bg-tertiary: #243044;
+    --border: #2a3a4e;
+    --border-light: #354a64;
+    --text-primary: #e8edf2;
+    --text-secondary: #8899aa;
+    --text-muted: #5a6a7a;
+    --accent-blue: #3b82f6;
+    --accent-blue-hover: #2563eb;
+    --accent-green: #22c55e;
+    --accent-red: #ef4444;
+    --accent-orange: #f97316;
+    --accent-yellow: #eab308;
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+}
+
+body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+a {
+    color: var(--accent-blue);
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
+
+/* ========================================
+   App Layout
+   ======================================== */
+
+.app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.main {
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    flex: 1;
+}
+
+/* ========================================
+   Header
+   ======================================== */
+
+.header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+}
+
+.header-content {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.header-left h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #3b82f6, #22c55e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.header-tagline {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.api-key-section label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.api-key-input-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.api-key-input-row input {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    width: 220px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.api-key-input-row input:focus {
+    border-color: var(--accent-blue);
+}
+
+.toggle-visibility {
+    font-size: 0.75rem;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.toggle-visibility:hover {
+    background: var(--border);
+}
+
+/* ========================================
+   Query Input
+   ======================================== */
+
+.query-input {
+    margin-bottom: 24px;
+}
+
+.input-row {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+}
+
+.input-row textarea {
+    flex: 1;
+    resize: none;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    line-height: 1.5;
+}
+.input-row textarea:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.input-row textarea::placeholder {
+    color: var(--text-muted);
+}
+
+.input-row button[type="submit"] {
+    padding: 14px 28px;
+    border-radius: var(--radius);
+    border: none;
+    background: var(--accent-blue);
+    color: white;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+}
+.input-row button[type="submit"]:hover:not(:disabled) {
+    background: var(--accent-blue-hover);
+    transform: translateY(-1px);
+}
+.input-row button[type="submit"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spinner-sm {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+/* Example chips */
+
+.examples {
+    margin-top: 14px;
+}
+
+.examples-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.example-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip {
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+}
+.chip:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-light);
+}
+.chip:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ========================================
+   Loading Spinner
+   ======================================== */
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 40px 0;
+}
+
+.loading-spinner .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.loading-spinner p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   Error Display
+   ======================================== */
+
+.error-display {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    color: #fca5a5;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.error-display strong {
+    color: var(--accent-red);
+}
+
+/* ========================================
+   SQL Display
+   ======================================== */
+
+.sql-display {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+
+.sql-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+}
+.sql-header:hover {
+    background: var(--bg-tertiary);
+}
+
+.sql-toggle {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toggle-arrow {
+    display: inline-block;
+    font-size: 0.65rem;
+    transition: transform 0.2s;
+}
+.toggle-arrow.open {
+    transform: rotate(90deg);
+}
+
+.copy-btn {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.copy-btn:hover {
+    background: var(--border);
+}
+
+.sql-code {
+    padding: 16px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: #93c5fd;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+/* ========================================
+   Visualization
+   ======================================== */
+
+.visualization {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.viz-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.viz-description {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+}
+
+.viz-container {
+    display: flex;
+    justify-content: center;
+}
+
+/* Spray Chart */
+
+.spray-chart-wrapper,
+.strike-zone-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.spray-chart,
+.strike-zone {
+    max-width: 500px;
+    width: 100%;
+    height: auto;
+}
+
+/* Generic Chart */
+
+.generic-chart {
+    width: 100%;
+}
+
+/* Chart Legend */
+
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* ========================================
+   Results Table
+   ======================================== */
+
+.results-table {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.results-table.empty {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.table-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.row-count {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pagination button {
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.pagination button:hover:not(:disabled) {
+    background: var(--border);
+}
+.pagination button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.page-info {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.table-scroll {
+    overflow-x: auto;
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+th {
+    background: var(--bg-tertiary);
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+}
+
+td {
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(42, 58, 78, 0.4);
+    color: var(--text-primary);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+tbody tr:hover {
+    background: rgba(59, 130, 246, 0.05);
+}
+
+/* ========================================
+   Footer
+   ======================================== */
+
+.footer {
+    text-align: center;
+    padding: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+/* ========================================
+   Responsive
+   ======================================== */
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .api-key-input-row input {
+        width: 100%;
+    }
+
+    .input-row {
+        flex-direction: column;
+    }
+
+    .input-row button[type="submit"] {
+        width: 100%;
+    }
+
+    .example-chips {
+        gap: 6px;
+    }
+
+    .chip {
+        font-size: 0.72rem;
+        white-space: normal;
+    }
+}
