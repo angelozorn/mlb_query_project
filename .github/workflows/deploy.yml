@@ -20,6 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Require Supabase secrets (anon key only — never service_role)
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "::error::Missing Actions secrets. In the repo: Settings → Secrets and variables → Actions, add SUPABASE_URL and SUPABASE_ANON_KEY (Supabase anon/public key only)."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -30,17 +37,27 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build
+      - name: Build for GitHub Pages
         working-directory: frontend
         run: npm run build
         env:
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Verify build output
+        working-directory: frontend
+        run: |
+          test -f dist/index.html || (echo "::error::dist/index.html missing" && exit 1)
+          if grep -rq "SERVICE_ROLE\|service_role" dist/ 2>/dev/null; then
+            echo "::error::service_role key must not appear in the frontend build"
+            exit 1
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: frontend/dist
 
   deploy:
     needs: build
@@ -49,5 +66,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - id: deployment
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
