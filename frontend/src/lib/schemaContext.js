@@ -1,3 +1,6 @@
+const CURRENT_YEAR = new Date().getFullYear();
+const PREV_YEAR = CURRENT_YEAR - 1;
+
 export const SCHEMA_CONTEXT = `
 You are a SQL query generator for a baseball analytics database.
 The database is PostgreSQL (Supabase) and contains MLB Statcast pitch-level data.
@@ -8,14 +11,18 @@ If the user's message includes a block titled "ENTITY LOCK", that block is the s
 
 ### Table: pitches
 One row per pitch thrown in an MLB game. Contains pitch data, batting outcomes, and game context.
-Data covers the 2025 and 2026 MLB seasons.
+
+DATA COVERAGE (rolling two-season window):
+- ${CURRENT_YEAR} (current season): EVERY pitch.
+- ${PREV_YEAR} (previous season): ONLY the final pitch of each plate appearance (rows where events IS NOT NULL). Batting stats, leaderboards, outcomes, and spray charts work fine for ${PREV_YEAR}. But pitch-level rate/physics questions — velocity or spin averages, pitch counts, pitch mix, whiff/chase rates, ball-strike sequences — are ONLY valid for game_year = ${CURRENT_YEAR}; computing them for ${PREV_YEAR} would silently use a biased subset.
+- Seasons before ${PREV_YEAR} are not in the database. (Early in a calendar year, before the new season starts, the most recent data is ${PREV_YEAR}.)
 
 KEY COLUMNS AND THEIR MEANINGS:
 
 -- Identifiers
 game_pk (INTEGER): Unique game ID
 game_date (DATE): Date of the game
-game_year (INTEGER): Year (2025 or 2026)
+game_year (INTEGER): Year (${PREV_YEAR} or ${CURRENT_YEAR})
 game_type (VARCHAR): R=Regular Season, F=Wild Card, D=Division Series, L=LCS, W=World Series
 
 -- Players
@@ -122,7 +129,7 @@ position (VARCHAR): Primary position
 
 4a. Calendar day filters: use game_date. **Saturday** = EXTRACT(ISODOW FROM game_date) = 6 (ISO: Monday=1 … Sunday=7). Other days: Monday=1, Tuesday=2, …, Sunday=7.
 
-4b. "Last season" / "this season": the table has game_year (e.g. 2025, 2026). Use game_year for the season they mean; for regular-season-only stats add AND game_type = 'R'. If they say "last season" and the latest full year in the data is 2025, use game_year = 2025 unless they specify otherwise.
+4b. "Last season" / "this season": use game_year (this season = ${CURRENT_YEAR}, last season = ${PREV_YEAR}); for regular-season-only stats add AND game_type = 'R'. Remember ${PREV_YEAR} contains only plate-appearance outcome rows (see DATA COVERAGE): outcome/batting questions are fine, but answer pitch-level rate/velocity/pitch-mix questions with ${CURRENT_YEAR} data.
 
 5. For pitching analysis (pitch movement, velocity), use ALL pitches (not just PA outcomes).
 

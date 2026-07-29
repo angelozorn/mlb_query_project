@@ -1,9 +1,18 @@
 """
 Statcast Data Pipeline
 Pulls pitch-level data from Baseball Savant and loads into Supabase.
+
+Retention (enforced at the start of each weekly refresh):
+    - Current season: every pitch.
+    - Previous season: only outcome pitches (events IS NOT NULL).
+    - Older seasons: deleted.
+
 Usage:
-    # Initial historical load (run once)
-    python pull_statcast.py --mode historical --start 2025-03-20 --end 2025-11-01
+    # Full-season load (current season)
+    python pull_statcast.py --mode historical --start 2026-03-10 --end 2026-07-28
+
+    # Previous-season load, outcome pitches only
+    python pull_statcast.py --mode historical --start 2025-03-18 --end 2025-11-02 --events-only
 
     # Weekly refresh (run by GitHub Actions)
     python pull_statcast.py --mode refresh
@@ -36,27 +45,25 @@ logger = logging.getLogger(__name__)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
+# Only columns the app's AI query generator knows about (frontend schemaContext.js),
+# plus the upsert conflict key. Statcast's release-point/physics/fielder columns are
+# intentionally excluded — they cost ~26% of the table and nothing can query them.
 SCHEMA_COLUMNS = [
     "game_pk", "game_date", "game_year", "game_type", "home_team", "away_team",
     "inning", "inning_topbot", "at_bat_number", "pitch_number",
     "pitcher", "p_throws", "batter", "stand", "player_name",
     "pitch_type", "pitch_name", "release_speed", "effective_speed",
-    "release_spin_rate", "spin_axis",
-    "release_pos_x", "release_pos_y", "release_pos_z", "release_extension",
+    "release_spin_rate", "spin_axis", "release_extension",
     "pfx_x", "pfx_z", "plate_x", "plate_z", "zone", "sz_top", "sz_bot",
-    "vx0", "vy0", "vz0", "ax", "ay", "az",
     "type", "description", "des", "events",
     "launch_speed", "launch_angle", "hit_distance_sc", "launch_speed_angle",
     "hc_x", "hc_y", "hit_location", "bb_type",
     "estimated_ba_using_speedangle", "estimated_woba_using_speedangle",
-    "woba_value", "woba_denom", "babip_value", "iso_value",
+    "woba_value", "babip_value", "iso_value",
     "balls", "strikes", "outs_when_up", "on_1b", "on_2b", "on_3b",
-    "home_score", "away_score", "bat_score", "fld_score",
-    "post_home_score", "post_away_score", "post_bat_score",
+    "home_score", "away_score", "bat_score", "post_bat_score",
     "if_fielding_alignment", "of_fielding_alignment",
-    "fielder_2", "fielder_3", "fielder_4", "fielder_5",
-    "fielder_6", "fielder_7", "fielder_8", "fielder_9",
-    "delta_home_win_exp", "delta_run_exp", "sv_id"
+    "delta_home_win_exp", "delta_run_exp",
 ]
 
 COLUMN_RENAMES = {
@@ -155,10 +162,7 @@ INTEGER_COLUMNS = frozenset({
     "pitcher", "batter", "zone", "hit_location", "launch_speed_angle",
     "balls", "strikes", "outs_when_up",
     "on_1b", "on_2b", "on_3b",
-    "home_score", "away_score", "bat_score", "fld_score",
-    "post_home_score", "post_away_score", "post_bat_score",
-    "fielder_2", "fielder_3", "fielder_4", "fielder_5",
-    "fielder_6", "fielder_7", "fielder_8", "fielder_9",
+    "home_score", "away_score", "bat_score", "post_bat_score",
 })
 
 
@@ -233,6 +237,87 @@ def get_supabase_client() -> Client:
         postgrest_client_timeout=timeout,
     )
     return create_client(SUPABASE_URL, SUPABASE_KEY, options=options)
+
+
+def _week_windows(year: int):
+    """7-day (start, end) ISO date windows spanning a season; keeps deletes small
+    enough to stay under Supabase statement timeouts."""
+    cur = date(year, 2, 1)
+    season_end = date(year, 12, 31)
+    while cur <= season_end:
+        nxt = cur + timedelta(days=7)
+        yield cur.isoformat(), nxt.isoformat()
+        cur = nxt
+
+
+def prune_old_seasons(supabase: Client):
+    """Enforce the rolling retention window:
+    current season = all pitches, previous season = outcome pitches only,
+    anything older = deleted. No-ops quickly when there is nothing to prune."""
+    current_year = datetime.now().year
+    prev_year = current_year - 1
+
+    def oldest_year():
+        res = supabase_execute_with_retry(
+            "prune: find oldest season",
+            lambda: supabase.table("pitches")
+            .select("game_year")
+            .order("game_year", desc=False)
+            .limit(1)
+            .execute(),
+        )
+        return res.data[0]["game_year"] if res.data else None
+
+    year = oldest_year()
+    while year is not None and year < prev_year:
+        logger.info("Pruning season %s (retention keeps %s and %s only)...",
+                    year, prev_year, current_year)
+        for win_start, win_end in _week_windows(year):
+            supabase_execute_with_retry(
+                f"prune {year} week of {win_start}",
+                lambda y=year, s=win_start, e=win_end: supabase.table("pitches")
+                .delete(returning="minimal")
+                .eq("game_year", y)
+                .gte("game_date", s)
+                .lt("game_date", e)
+                .execute(),
+            )
+        supabase_execute_with_retry(
+            f"prune {year} remainder",
+            lambda y=year: supabase.table("pitches")
+            .delete(returning="minimal")
+            .eq("game_year", y)
+            .execute(),
+        )
+        logger.info("Season %s pruned.", year)
+        year = oldest_year()
+
+    def prev_has_non_outcome_rows():
+        res = supabase_execute_with_retry(
+            "prune: check previous season for non-outcome pitches",
+            lambda: supabase.table("pitches")
+            .select("game_pk")
+            .eq("game_year", prev_year)
+            .is_("events", "null")
+            .limit(1)
+            .execute(),
+        )
+        return bool(res.data)
+
+    if prev_has_non_outcome_rows():
+        logger.info("Stripping season %s to outcome pitches only...", prev_year)
+        for win_start, win_end in _week_windows(prev_year):
+            supabase_execute_with_retry(
+                f"strip {prev_year} week of {win_start}",
+                lambda s=win_start, e=win_end: supabase.table("pitches")
+                .delete(returning="minimal")
+                .eq("game_year", prev_year)
+                .is_("events", "null")
+                .gte("game_date", s)
+                .lt("game_date", e)
+                .execute(),
+            )
+        logger.info("Season %s stripped to outcome pitches.", prev_year)
 
 
 def pull_statcast_data(start_date: str, end_date: str) -> pd.DataFrame:
@@ -311,7 +396,10 @@ def load_to_supabase(df: pd.DataFrame, supabase: Client, batch_size: int = 250):
             logger.info(f"Loaded {loaded}/{total_rows} rows")
         except Exception as e:
             logger.error("Error loading batch starting at row %s: %s", i, e)
-            break
+            raise RuntimeError(
+                f"pitches load failed at batch starting row {i} "
+                f"({loaded}/{total_rows} rows loaded)"
+            ) from e
 
     return loaded
 
@@ -324,8 +412,7 @@ def update_players_for_ids(all_ids: set, supabase: Client) -> None:
     try:
         name_by_id = build_chadwick_id_to_name(all_ids)
     except Exception as e:
-        logger.error(f"Chadwick lookup failed; skipping players update: {e}")
-        return
+        raise RuntimeError(f"Chadwick lookup failed; players table not updated: {e}") from e
 
     records = []
     for pid in all_ids:
@@ -339,7 +426,7 @@ def update_players_for_ids(all_ids: set, supabase: Client) -> None:
             supabase.table("players").upsert(batch, on_conflict="player_id").execute()
         logger.info("Updated %s player rows from Chadwick", len(records))
     except Exception as e:
-        logger.error(f"Error updating players table: {e}")
+        raise RuntimeError(f"players table update failed: {e}") from e
 
 
 def update_players_table(df: pd.DataFrame, supabase: Client):
@@ -501,7 +588,7 @@ def get_last_refresh_date(supabase: Client) -> str:
     return None
 
 
-def run_historical_load(start_date: str, end_date: str):
+def run_historical_load(start_date: str, end_date: str, events_only: bool = False):
     supabase = get_supabase_client()
 
     current_start = datetime.strptime(start_date, "%Y-%m-%d")
@@ -517,6 +604,9 @@ def run_historical_load(start_date: str, end_date: str):
         try:
             df = pull_statcast_data(start_str, end_str)
             df = clean_data(df)
+            if events_only and not df.empty:
+                df = df[df["events"].notna() & (df["events"] != "")]
+                logger.info(f"Outcome pitches only: {len(df)} rows kept")
             rows = load_to_supabase(df, supabase)
             update_players_table(df, supabase)
             log_refresh(supabase, start_str, end_str, rows)
@@ -532,6 +622,13 @@ def run_historical_load(start_date: str, end_date: str):
 
 def run_weekly_refresh():
     supabase = get_supabase_client()
+
+    try:
+        prune_old_seasons(supabase)
+    except Exception as e:
+        # Retention failures shouldn't block loading new data; if the database is
+        # actually full, the load below fails loudly on its own.
+        logger.warning("Season pruning failed (continuing with refresh): %s", e)
 
     last_date = get_last_refresh_date(supabase)
     if last_date:
@@ -572,6 +669,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--start", type=str, help="Start date for historical load (YYYY-MM-DD)")
     parser.add_argument("--end", type=str, help="End date for historical load (YYYY-MM-DD)")
+    parser.add_argument(
+        "--events-only",
+        action="store_true",
+        help="Historical mode: keep only pitches with a plate-appearance outcome "
+        "(events IS NOT NULL). Used to load the previous season under the "
+        "rolling retention policy.",
+    )
 
     args = parser.parse_args()
 
@@ -579,7 +683,7 @@ if __name__ == "__main__":
         if not args.start or not args.end:
             print("--start and --end are required for historical mode")
             sys.exit(1)
-        run_historical_load(args.start, args.end)
+        run_historical_load(args.start, args.end, events_only=args.events_only)
     elif args.mode == "refresh":
         run_weekly_refresh()
     elif args.mode == "rebuild-players":
