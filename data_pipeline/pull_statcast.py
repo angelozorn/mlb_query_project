@@ -292,19 +292,24 @@ def prune_old_seasons(supabase: Client):
         logger.info("Season %s pruned.", year)
         year = oldest_year()
 
-    def prev_has_non_outcome_rows():
+    # A "have we already stripped prev_year?" scan of the pitches table times out
+    # once the season is clean (it reads every row before concluding no match), so
+    # completion is recorded as a marker row in data_refresh_log instead.
+    strip_marker_start = f"{prev_year}-01-01"
+
+    def strip_marker_exists():
         res = supabase_execute_with_retry(
-            "prune: check previous season for non-outcome pitches",
-            lambda: supabase.table("pitches")
-            .select("game_pk")
-            .eq("game_year", prev_year)
-            .is_("events", "null")
+            "prune: check season_pruned marker",
+            lambda: supabase.table("data_refresh_log")
+            .select("start_date")
+            .eq("status", "season_pruned")
+            .eq("start_date", strip_marker_start)
             .limit(1)
             .execute(),
         )
         return bool(res.data)
 
-    if prev_has_non_outcome_rows():
+    if not strip_marker_exists():
         logger.info("Stripping season %s to outcome pitches only...", prev_year)
         for win_start, win_end in _week_windows(prev_year):
             supabase_execute_with_retry(
@@ -317,6 +322,16 @@ def prune_old_seasons(supabase: Client):
                 .lt("game_date", e)
                 .execute(),
             )
+        supabase_execute_with_retry(
+            "prune: record season_pruned marker",
+            lambda: supabase.table("data_refresh_log").insert({
+                "start_date": strip_marker_start,
+                "end_date": f"{prev_year}-12-31",
+                "rows_inserted": 0,
+                "status": "season_pruned",
+                "error_message": None,
+            }).execute(),
+        )
         logger.info("Season %s stripped to outcome pitches.", prev_year)
 
 
@@ -636,9 +651,11 @@ def run_weekly_refresh():
     else:
         start_date = f"{datetime.now().year}-03-20"
 
-    end_date = datetime.now().strftime("%Y-%m-%d")
+    # Pull only through yesterday: today's games are unplayed or in progress when
+    # the job runs, and logging success through today would skip them forever.
+    end_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    if start_date >= end_date:
+    if start_date > end_date:
         logger.info("No new data to refresh.")
         return
 
